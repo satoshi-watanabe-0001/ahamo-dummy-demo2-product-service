@@ -172,4 +172,74 @@ class SmartphoneProductControllerTest {
                 .andExpect(jsonPath("$.data.voiceOptions[0].id").value("none"))
                 .andExpect(jsonPath("$.data.overseaCallingOptions[0].id").value("none"));
     }
+
+    @Test
+    @WithMockUser
+    void getSmartphones_ServiceException_ReturnsInternalServerError() throws Exception {
+        when(smartphoneProductService.getSmartphones(any(), anyInt(), anyInt()))
+                .thenThrow(new RuntimeException("Database connection failed"));
+
+        mockMvc.perform(get("/api/v1/smartphones"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Internal server error"));
+    }
+
+    @Test
+    @WithMockUser
+    void getSmartphoneById_ServiceException_ReturnsInternalServerError() throws Exception {
+        when(smartphoneProductService.getSmartphoneById("1"))
+                .thenThrow(new RuntimeException("Database connection failed"));
+
+        mockMvc.perform(get("/api/v1/smartphones/1"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Internal server error"));
+    }
+
+    @Test
+    @WithMockUser
+    void getSmartphoneOptions_ServiceException_ReturnsInternalServerError() throws Exception {
+        when(smartphoneProductService.getSmartphoneOptions("1"))
+                .thenThrow(new RuntimeException("Database connection failed"));
+
+        mockMvc.perform(get("/api/v1/smartphones/1/options"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Internal server error"));
+    }
+
+    @Test
+    @WithMockUser
+    void getSmartphones_WithPaginationParameters_ReturnsCorrectPage() throws Exception {
+        SmartphoneProductDto smartphone = SmartphoneProductDto.builder()
+                .id("1")
+                .name("iPhone 16e")
+                .brand("Apple")
+                .price("43,670円〜")
+                .has5G(true)
+                .build();
+
+        SmartphoneApiResponse apiResponse = SmartphoneApiResponse.builder()
+                .smartphones(List.of(smartphone))
+                .totalCount(25)
+                .currentPage(2)
+                .totalPages(3)
+                .hasNext(true)
+                .hasPrevious(true)
+                .build();
+
+        when(smartphoneProductService.getSmartphones(null, 2, 10))
+                .thenReturn(apiResponse);
+
+        mockMvc.perform(get("/api/v1/smartphones")
+                        .param("page", "2")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.currentPage").value(2))
+                .andExpect(jsonPath("$.data.totalPages").value(3))
+                .andExpect(jsonPath("$.data.hasNext").value(true))
+                .andExpect(jsonPath("$.data.hasPrevious").value(true));
+    }
 }
