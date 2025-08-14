@@ -62,6 +62,26 @@ tasks.named('test') {
     finalizedBy jacocoTestReport
 }
 
+task integrationTest(type: Test) {
+    description = 'Runs integration tests with PostgreSQL database'
+    group = 'verification'
+    
+    useJUnitPlatform {
+        includeTags 'integration'
+    }
+    
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    
+    shouldRunAfter test
+}
+
+test {
+    useJUnitPlatform {
+        excludeTags 'integration'
+    }
+}
+
 jacocoTestReport {
     dependsOn test
     reports {
