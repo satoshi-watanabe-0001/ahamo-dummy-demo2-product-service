@@ -28,4 +28,11 @@ public interface SmartphoneProductRepository extends JpaRepository<SmartphonePro
            "LEFT JOIN FETCH sp.specifications " +
            "WHERE sp.id = :id")
     SmartphoneProduct findByIdWithSpecifications(@Param("id") String id);
+
+    @Query("SELECT sp FROM SmartphoneProduct sp WHERE sp.name LIKE %:query%")
+    Page<SmartphoneProduct> findByNameContainingIgnoreCase(@Param("query") String query, Pageable pageable);
+
+    @Query("SELECT sp FROM SmartphoneProduct sp WHERE (:minPrice IS NULL OR CAST(REPLACE(REPLACE(sp.price, '円', ''), '〜', '') AS INTEGER) >= :minPrice) " +
+           "AND (:maxPrice IS NULL OR CAST(REPLACE(REPLACE(sp.price, '円', ''), '〜', '') AS INTEGER) <= :maxPrice)")
+    Page<SmartphoneProduct> findByPriceRange(@Param("minPrice") Integer minPrice, @Param("maxPrice") Integer maxPrice, Pageable pageable);
 }

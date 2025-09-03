@@ -242,4 +242,85 @@ class SmartphoneProductControllerTest {
                 .andExpect(jsonPath("$.data.hasNext").value(true))
                 .andExpect(jsonPath("$.data.hasPrevious").value(true));
     }
+
+    @Test
+    @WithMockUser
+    void searchSmartphones_ReturnsSuccessResponse() throws Exception {
+        SmartphoneProductDto smartphone = SmartphoneProductDto.builder()
+                .id("1")
+                .name("iPhone 16e")
+                .brand("Apple")
+                .price("43,670円〜")
+                .has5G(true)
+                .build();
+
+        SmartphoneApiResponse apiResponse = SmartphoneApiResponse.builder()
+                .smartphones(List.of(smartphone))
+                .totalCount(1)
+                .currentPage(0)
+                .totalPages(1)
+                .hasNext(false)
+                .hasPrevious(false)
+                .build();
+
+        when(smartphoneProductService.searchSmartphones("iPhone", 0, 10))
+                .thenReturn(apiResponse);
+
+        mockMvc.perform(get("/api/v1/smartphones/search")
+                        .param("q", "iPhone"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.smartphones[0].name").value("iPhone 16e"));
+    }
+
+    @Test
+    @WithMockUser
+    void getSmartphoneStock_ReturnsSuccessResponse() throws Exception {
+        StockResponse stockResponse = StockResponse.builder()
+                .inStock(true)
+                .quantity(15)
+                .estimatedDelivery("2-3営業日")
+                .build();
+
+        when(smartphoneProductService.getSmartphoneStock("1"))
+                .thenReturn(stockResponse);
+
+        mockMvc.perform(get("/api/v1/smartphones/1/stock"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.inStock").value(true))
+                .andExpect(jsonPath("$.data.quantity").value(15))
+                .andExpect(jsonPath("$.data.estimatedDelivery").value("2-3営業日"));
+    }
+
+    @Test
+    @WithMockUser
+    void getSmartphones_WithPriceRange_ReturnsFilteredResults() throws Exception {
+        SmartphoneProductDto smartphone = SmartphoneProductDto.builder()
+                .id("1")
+                .name("iPhone 16e")
+                .brand("Apple")
+                .price("43,670円〜")
+                .has5G(true)
+                .build();
+
+        SmartphoneApiResponse apiResponse = SmartphoneApiResponse.builder()
+                .smartphones(List.of(smartphone))
+                .totalCount(1)
+                .currentPage(0)
+                .totalPages(1)
+                .hasNext(false)
+                .hasPrevious(false)
+                .build();
+
+        when(smartphoneProductService.getSmartphonesByPriceRange(50000, 100000, 0, 10))
+                .thenReturn(apiResponse);
+
+        mockMvc.perform(get("/api/v1/smartphones")
+                        .param("minPrice", "50000")
+                        .param("maxPrice", "100000"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.smartphones[0].price").value("43,670円〜"));
+    }
 }
