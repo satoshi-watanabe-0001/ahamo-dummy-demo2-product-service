@@ -4,6 +4,7 @@ import com.ahamo.dummy.demo2.template.controller.dto.ApiResponse;
 import com.ahamo.dummy.demo2.template.controller.dto.SmartphoneApiResponse;
 import com.ahamo.dummy.demo2.template.controller.dto.SmartphoneOptionsDto;
 import com.ahamo.dummy.demo2.template.controller.dto.SmartphoneProductDto;
+import com.ahamo.dummy.demo2.template.controller.dto.StockResponse;
 import com.ahamo.dummy.demo2.template.service.SmartphoneProductService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,13 +22,21 @@ public class SmartphoneProductController {
     @GetMapping
     public ResponseEntity<ApiResponse<SmartphoneApiResponse>> getSmartphones(
             @RequestParam(required = false) String brand,
+            @RequestParam(required = false) Integer minPrice,
+            @RequestParam(required = false) Integer maxPrice,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         
-        log.info("GET /api/v1/smartphones - brand: {}, page: {}, size: {}", brand, page, size);
+        log.info("GET /api/v1/smartphones - brand: {}, minPrice: {}, maxPrice: {}, page: {}, size: {}", brand, minPrice, maxPrice, page, size);
         
         try {
-            SmartphoneApiResponse response = smartphoneProductService.getSmartphones(brand, page, size);
+            SmartphoneApiResponse response;
+            
+            if (minPrice != null || maxPrice != null) {
+                response = smartphoneProductService.getSmartphonesByPriceRange(minPrice, maxPrice, page, size);
+            } else {
+                response = smartphoneProductService.getSmartphones(brand, page, size);
+            }
             
             return ResponseEntity.ok(ApiResponse.<SmartphoneApiResponse>builder()
                     .success(true)
@@ -83,6 +92,52 @@ public class SmartphoneProductController {
             log.error("Error getting smartphone options for deviceId: {}", deviceId, e);
             return ResponseEntity.internalServerError()
                     .body(ApiResponse.<SmartphoneOptionsDto>builder()
+                            .success(false)
+                            .error("Internal server error")
+                            .build());
+        }
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<SmartphoneApiResponse>> searchSmartphones(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        
+        log.info("GET /api/v1/smartphones/search - query: {}, page: {}, size: {}", q, page, size);
+        
+        try {
+            SmartphoneApiResponse response = smartphoneProductService.searchSmartphones(q, page, size);
+            
+            return ResponseEntity.ok(ApiResponse.<SmartphoneApiResponse>builder()
+                    .success(true)
+                    .data(response)
+                    .build());
+        } catch (Exception e) {
+            log.error("Error searching smartphones", e);
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.<SmartphoneApiResponse>builder()
+                            .success(false)
+                            .error("Internal server error")
+                            .build());
+        }
+    }
+
+    @GetMapping("/{id}/stock")
+    public ResponseEntity<ApiResponse<StockResponse>> getSmartphoneStock(@PathVariable String id) {
+        log.info("GET /api/v1/smartphones/{}/stock", id);
+        
+        try {
+            StockResponse stock = smartphoneProductService.getSmartphoneStock(id);
+            
+            return ResponseEntity.ok(ApiResponse.<StockResponse>builder()
+                    .success(true)
+                    .data(stock)
+                    .build());
+        } catch (Exception e) {
+            log.error("Error getting smartphone stock for id: {}", id, e);
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.<StockResponse>builder()
                             .success(false)
                             .error("Internal server error")
                             .build());

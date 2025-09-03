@@ -12,6 +12,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -26,6 +27,8 @@ public class SmartphoneProductService {
     private final DataPlanRepository dataPlanRepository;
     private final VoiceOptionRepository voiceOptionRepository;
     private final OverseaCallingOptionRepository overseaCallingOptionRepository;
+    private final SmartphoneStockRepository smartphoneStockRepository;
+    private final PriceCalculationRepository priceCalculationRepository;
 
     public SmartphoneApiResponse getSmartphones(String brand, int page, int size) {
         log.info("Getting smartphones with brand: {}, page: {}, size: {}", brand, page, size);
@@ -146,6 +149,139 @@ public class SmartphoneProductService {
                 .title(overseaCallingOption.getTitle())
                 .description(overseaCallingOption.getDescription())
                 .price(overseaCallingOption.getPrice())
+                .build();
+    }
+
+    public SmartphoneApiResponse searchSmartphones(String query, int page, int size) {
+        log.info("Searching smartphones with query: {}, page: {}, size: {}", query, page, size);
+        
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id"));
+        Page<SmartphoneProduct> smartphonePage = smartphoneProductRepository.findByNameContainingIgnoreCase(query, pageable);
+        
+        List<SmartphoneProductDto> smartphones = smartphonePage.getContent().stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+        
+        return SmartphoneApiResponse.builder()
+                .smartphones(smartphones)
+                .totalCount((int) smartphonePage.getTotalElements())
+                .currentPage(page)
+                .totalPages(smartphonePage.getTotalPages())
+                .hasNext(smartphonePage.hasNext())
+                .hasPrevious(smartphonePage.hasPrevious())
+                .build();
+    }
+
+    public SmartphoneApiResponse getSmartphonesByPriceRange(Integer minPrice, Integer maxPrice, int page, int size) {
+        log.info("Getting smartphones with price range: {} - {}, page: {}, size: {}", minPrice, maxPrice, page, size);
+        
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id"));
+        Page<SmartphoneProduct> smartphonePage = smartphoneProductRepository.findByPriceRange(minPrice, maxPrice, pageable);
+        
+        List<SmartphoneProductDto> smartphones = smartphonePage.getContent().stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+        
+        return SmartphoneApiResponse.builder()
+                .smartphones(smartphones)
+                .totalCount((int) smartphonePage.getTotalElements())
+                .currentPage(page)
+                .totalPages(smartphonePage.getTotalPages())
+                .hasNext(smartphonePage.hasNext())
+                .hasPrevious(smartphonePage.hasPrevious())
+                .build();
+    }
+
+    public DataPlanListResponse getAllDataPlans() {
+        log.info("Getting all data plans");
+        List<DataPlan> dataPlans = dataPlanRepository.findAll();
+        return DataPlanListResponse.builder()
+                .dataPlans(dataPlans.stream().map(this::convertToDto).collect(Collectors.toList()))
+                .build();
+    }
+
+    public VoiceOptionListResponse getAllVoiceOptions() {
+        log.info("Getting all voice options");
+        List<VoiceOption> voiceOptions = voiceOptionRepository.findAll();
+        return VoiceOptionListResponse.builder()
+                .voiceOptions(voiceOptions.stream().map(this::convertToDto).collect(Collectors.toList()))
+                .build();
+    }
+
+    public StockResponse getSmartphoneStock(String id) {
+        log.info("Getting stock for smartphone: {}", id);
+        SmartphoneStock stock = smartphoneStockRepository.findById(id)
+                .orElse(SmartphoneStock.builder()
+                        .smartphoneId(id)
+                        .inStock(true)
+                        .quantity(10)
+                        .estimatedDelivery("2-3営業日")
+                        .build());
+        
+        return StockResponse.builder()
+                .inStock(stock.getInStock())
+                .quantity(stock.getQuantity())
+                .estimatedDelivery(stock.getEstimatedDelivery())
+                .build();
+    }
+
+    public PriceCalculationResponse calculatePrice(PriceCalculationRequest request) {
+        log.info("Calculating price for request: {}", request);
+        
+        int totalPrice = 0;
+        List<PriceCalculationResponse.PriceBreakdownItem> breakdown = new ArrayList<>();
+        
+        if (request.getDataPlanId() != null) {
+            DataPlan dataPlan = dataPlanRepository.findById(request.getDataPlanId()).orElse(null);
+            if (dataPlan != null) {
+                int price = Integer.parseInt(dataPlan.getPrice());
+                totalPrice += price;
+                breakdown.add(PriceCalculationResponse.PriceBreakdownItem.builder()
+                        .name(dataPlan.getTitle())
+                        .price(price)
+                        .build());
+            }
+        }
+        
+        if (request.getVoiceOptionId() != null) {
+            VoiceOption voiceOption = voiceOptionRepository.findById(request.getVoiceOptionId()).orElse(null);
+            if (voiceOption != null) {
+                int price = Integer.parseInt(voiceOption.getPrice());
+                totalPrice += price;
+                breakdown.add(PriceCalculationResponse.PriceBreakdownItem.builder()
+                        .name(voiceOption.getTitle())
+                        .price(price)
+                        .build());
+            }
+        }
+        
+        if (request.getOverseaOptionId() != null) {
+            OverseaCallingOption overseaOption = overseaCallingOptionRepository.findById(request.getOverseaOptionId()).orElse(null);
+            if (overseaOption != null) {
+                int price = Integer.parseInt(overseaOption.getPrice());
+                totalPrice += price;
+                breakdown.add(PriceCalculationResponse.PriceBreakdownItem.builder()
+                        .name(overseaOption.getTitle())
+                        .price(price)
+                        .build());
+            }
+        }
+        
+        PriceCalculation calculation = PriceCalculation.builder()
+                .deviceId(request.getDeviceId())
+                .dataPlanId(request.getDataPlanId())
+                .voiceOptionId(request.getVoiceOptionId())
+                .overseaOptionId(request.getOverseaOptionId())
+                .totalPrice(totalPrice)
+                .monthlyPrice(totalPrice)
+                .build();
+        
+        priceCalculationRepository.save(calculation);
+        
+        return PriceCalculationResponse.builder()
+                .totalPrice(totalPrice)
+                .monthlyPrice(totalPrice)
+                .breakdown(breakdown)
                 .build();
     }
 }
